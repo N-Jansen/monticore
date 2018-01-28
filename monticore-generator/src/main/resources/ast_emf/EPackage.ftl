@@ -47,11 +47,11 @@ import de.monticore.emf._ast.ASTEPackage;
 
 public interface ${ast.getName()} extends ASTEPackage {
   // The package name.
-  String eNAME = "${grammarName}";
+  String eNAME = "${genHelper.getPackageName()}";
   // The package namespace URI.
   String eNS_URI = "${packageURI}";
   // The package namespace name.
-  String eNS_PREFIX = "${grammarName}";
+  String eNS_PREFIX = "${genHelper.getPackageName()}";
   // The singleton instance of the package.
   ${ast.getName()} eINSTANCE = ${grammarName}PackageImpl.init();
   
