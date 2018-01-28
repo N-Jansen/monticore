@@ -18,6 +18,8 @@ import de.monticore.emf.util.AST2ModelFiles;
 
 /**
  * Plugin to generate ecore files in a MontiCore project.
+ * 
+ * @author Nico Jansen
  */
 @Mojo(name = "generate_ecore")
 public class EcoreCreator extends AbstractMojo {
