@@ -19,6 +19,8 @@
 package de.monticore.codegen.cd2java.ast_emf;
 
 import static de.monticore.codegen.GeneratorHelper.getPlainName;
+import static de.se_rwth.commons.Names.getQualifier;
+import static de.se_rwth.commons.Names.getSimpleName;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,19 +42,24 @@ import de.monticore.codegen.GeneratorHelper;
 import de.monticore.codegen.cd2java.ast.AstAdditionalAttributes;
 import de.monticore.codegen.cd2java.ast.AstGeneratorHelper;
 import de.monticore.codegen.cd2java.ast.CdDecorator;
+import de.monticore.codegen.cd2java.ast_emf.CdEmfDecorator.ETypeCollector;
 import de.monticore.codegen.cd2java.visitor.VisitorGeneratorHelper;
+import de.monticore.codegen.mc2cd.MC2CDStereotypes;
 import de.monticore.codegen.mc2cd.TransformationHelper;
 import de.monticore.codegen.mc2cd.transl.ConstantsTranslation;
+import de.monticore.codegen.symboltable.SymbolTableGeneratorHelper;
 import de.monticore.generating.templateengine.GlobalExtensionManagement;
 import de.monticore.generating.templateengine.HookPoint;
 import de.monticore.generating.templateengine.StringHookPoint;
 import de.monticore.generating.templateengine.TemplateHookPoint;
 import de.monticore.io.paths.IterablePath;
 import de.monticore.symboltable.GlobalScope;
+import de.monticore.symboltable.Scope;
 import de.monticore.types.TypesHelper;
 import de.monticore.types.TypesPrinter;
 import de.monticore.types.types._ast.ASTImportStatement;
 import de.monticore.types.types._ast.ASTSimpleReferenceType;
+import de.monticore.umlcd4a.CD4AnalysisHelper;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDAttribute;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDClass;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDCompilationUnit;
@@ -62,11 +69,13 @@ import de.monticore.umlcd4a.cd4analysis._ast.ASTCDEnumConstant;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDInterface;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDMethod;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDType;
+import de.monticore.umlcd4a.cd4analysis._ast.ASTModifier;
 import de.monticore.umlcd4a.cd4analysis._ast.CD4AnalysisNodeFactory;
 import de.monticore.umlcd4a.cd4analysis._visitor.CD4AnalysisInheritanceVisitor;
 import de.monticore.umlcd4a.symboltable.CDFieldSymbol;
 import de.monticore.umlcd4a.symboltable.CDSymbol;
 import de.monticore.umlcd4a.symboltable.CDTypeSymbol;
+import de.monticore.umlcd4a.symboltable.references.CDTypeSymbolReference;
 import de.se_rwth.commons.Names;
 import de.se_rwth.commons.StringTransformations;
 import de.se_rwth.commons.logging.Log;
@@ -111,6 +120,11 @@ public class CdEmfDecorator extends CdDecorator {
     
     List<ASTCDClass> nativeClasses = Lists.newArrayList(cdDefinition.getCDClasses());
     List<ASTCDType> nativeTypes = astHelper.getNativeTypes(cdDefinition);
+    
+    // Add symbol attributes.
+    for (ASTCDClass clazz : nativeClasses) {
+        addSymbolAttributes(clazz, astHelper,  nativeTypes);
+    }
     
     List<ASTCDClass> astNotAbstractClasses = cdDefinition.getCDClasses().stream()
         .filter(e -> e.getModifier().isPresent())
@@ -166,6 +180,68 @@ public class CdEmfDecorator extends CdDecorator {
     addEmfCode(cdCompilationUnit, nativeClasses, nativeTypes, astHelper,
         emfCollector.getExternalTypes());
         
+  }
+  
+  /**
+     * Method to create attributes for referenced nonterminals
+     * 
+     * @param clazz The class to add the attribute.
+     * @param astHelper A helper for the computation.
+     * @param nativeTypes The native types in the class diagram.
+     */
+  protected void addSymbolAttributes(ASTCDClass clazz, AstEmfGeneratorHelper astHelper, 
+		  List<ASTCDType> nativeTypes) {
+      List<ASTCDAttribute> attributes = Lists.newArrayList(clazz.getCDAttributes());
+      for (ASTCDAttribute attribute : attributes) {
+          if (GeneratorHelper.isInherited(attribute) 
+                  || !CD4AnalysisHelper.hasStereotype(attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString())) {
+              continue;
+          }
+          String referencedSymbol = CD4AnalysisHelper
+                  .getStereotypeValues(attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString()).get(0);
+
+          if (!getQualifier(referencedSymbol).isEmpty()) {
+              referencedSymbol = SymbolTableGeneratorHelper.getQualifiedSymbolType(
+                      getQualifier(referencedSymbol).toLowerCase(), getSimpleName(referencedSymbol));
+          }
+
+          // computations to derive correct attribute
+          List<String> typeList = CD4AnalysisHelper.getStereotypeValues(attribute,
+                  MC2CDStereotypes.REFERENCED_SYMBOL.toString());
+          String type = typeList.get(0);
+          String[] typeArray = type.split("\\.");
+          type = typeArray[typeArray.length - 1];
+          type = type.substring(0, type.length() - 6);
+
+          // get referenced class
+          ASTCDType ast = null;
+          for (ASTCDType astCD : nativeTypes) {
+              if (astCD.getName().equals(GeneratorHelper.AST_PREFIX + type)) {
+                  ast = astCD;
+              }
+          }
+
+          // check if ast is present
+          if (ast == null) {
+        	  Log.error("0xA5015 CdDecorator error: " + GeneratorHelper.AST_PREFIX + type
+        	          + " not found. EMF reference cannot be created.");
+          }
+
+          Scope definingScopeOfReference = clazz.getEnclosingScope().get();
+          CDTypeSymbolReference symbolRef = new CDTypeSymbolReference(ast.getName(), definingScopeOfReference);
+          CDFieldSymbol cdFieldSymbol = new CDFieldSymbol(attribute.getName() + type, symbolRef);
+
+          String refType = ast.getName();
+          ASTCDAttribute cdAttribute = null;
+          
+          cdAttribute = (cdTransformation.addCdAttribute(clazz, attribute.getName() + type, refType, "protected")).get();
+          cdAttribute.setSymbol(cdFieldSymbol);
+
+          // set the attribute to derived since its name is accessible in the new cdAttribtue
+          ASTModifier astModifier = attribute.getModifier().get();
+          astModifier.setDerived(true);
+          attribute.setModifier(astModifier);
+      }
   }
   
   /**
