@@ -133,8 +133,13 @@ software, even if advised of the possibility of such damage.
       <#else>
         <#assign get = "ecorePackage.getE" + emfAttribute.getEDataType()?cap_first>
       </#if> 
+      <#if emfAttribute.getCdAttribute().getModifier().get().isDerived()>
+        <#assign isDerived = "">
+      <#else>
+        <#assign isDerived = "!"> 
+      </#if>
     init${emfAttribute.getEmfType()}(get${emfAttribute.getFullName()}(), ${get}(), "${emfAttribute.getAttributeName()?cap_first}", null, 
-      0, ${isList}, ${emfAttribute.getCdType().getName()}.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, <#if isList == "1">!</#if>IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+      0, ${isList}, ${emfAttribute.getCdType().getName()}.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, <#if isList == "1">!</#if>IS_UNIQUE, ${isDerived}IS_DERIVED, IS_ORDERED);
     </#if>
   </#list>
   
