@@ -17,7 +17,8 @@ import de.monticore.emf._ast.ASTEPackage;
 import de.monticore.emf.util.AST2ModelFiles;
 
 /**
- * Plugin to generate ecore files in a MontiCore project.
+ * Plugin to generate Ecore files in a MontiCore project.
+ * Also creates an Ecore modeling project for a selected grammar.
  * 
  * @author Nico Jansen
  */
@@ -28,7 +29,13 @@ public class EcoreCreator extends AbstractMojo {
 	 * The calling MontiCore project.
 	 */
 	@Parameter(defaultValue = "${project}", required = true, readonly = true)
-	MavenProject project;
+	private MavenProject project;
+
+    /**
+     * The parameter of the grammar, for which the modeling project is generated.
+     */
+	@Parameter(defaultValue = "${grammarParam}", readonly = true)
+    private String grammarParam;
 
 	/**
 	 * The method is called, when executing the plugin. It generates the ecore files
@@ -51,6 +58,7 @@ public class EcoreCreator extends AbstractMojo {
 			return;
 		}
 
+        // generate Ecore metamodels for all grammars
 		getLog().info("Generating ecore files.");
 		File[] grammarFiles = grammarDir.listFiles();
 		for (File grammarFile : grammarFiles) {
@@ -64,6 +72,9 @@ public class EcoreCreator extends AbstractMojo {
 				getLog().info("Generating ecore file for grammar " + name + " successful.");
 			}
 		}
+
+        // generate Ecore modeling project for selected grammar
+		createModelingProject(grammarFiles);
 	}
 
 	/**
@@ -96,4 +107,45 @@ public class EcoreCreator extends AbstractMojo {
 			e.printStackTrace();
 		}
 	}
+
+	/**
+	 * Generates the Ecore modeling project for the selected grammar.
+	 * 
+	 * @param grammarFiles The available grammars.
+	 */
+	private void createModelingProject(File[] grammarFiles) {
+        // check if grammar parameter is set
+        if (grammarParam == null) {
+            getLog().warn("No grammar for modeling project specified.");
+            return;
+        }
+
+        // check if specified grammar exists
+        boolean grammarExists = false;
+        for (File grammarFile : grammarFiles) {
+            String name = grammarFile.getName();
+            grammarExists = grammarExists || grammarParam.equals(name);
+        }
+        if (!grammarExists) {
+        	getLog().warn("Specified grammar " + grammarParam + " does not exist. "
+        			+ "Modeling Project cannot be created.");
+        	return;
+        }
+
+        // check if corresponding Ecore file exists
+        String fileName = grammarParam.replace(".mc4", "");
+        fileName = fileName.substring(0, 1).toLowerCase() + fileName.substring(1);
+        File ecoreFile = new File(project.getBasedir().getAbsoluteFile()
+        		+ "\\target\\generated-test-sources\\emf\\models\\"
+        		+ fileName + "\\" + fileName + ".ecore");
+        if (!ecoreFile.exists() || !ecoreFile.isFile()) {
+        	getLog().warn("No Ecore file for grammar "+ grammarParam + " found.");
+            return;
+        }
+
+        // generate Ecore modeling project
+        getLog().info("Generating modeling project for grammar " + grammarParam + ".");
+        EcoreModelingProjectCreator ecoreMPC = new EcoreModelingProjectCreator(ecoreFile);
+        ecoreMPC.create(project.getBasedir().getAbsoluteFile().getParentFile());
+    }
 }
