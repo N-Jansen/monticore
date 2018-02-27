@@ -32,6 +32,7 @@ import de.monticore.codegen.cd2java.ast.AstGeneratorHelper;
 import de.monticore.codegen.mc2cd.manipul.BaseInterfaceAddingManipulation;
 import de.monticore.emf._ast.ASTECNode;
 import de.monticore.emf._ast.ASTENodePackage;
+import de.monticore.grammar.grammar._ast.ASTConstantsGrammar;
 import de.monticore.symboltable.GlobalScope;
 import de.monticore.types.TypesHelper;
 import de.monticore.types.TypesPrinter;
@@ -43,6 +44,7 @@ import de.monticore.umlcd4a.cd4analysis._ast.ASTCDDefinition;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDType;
 import de.monticore.umlcd4a.symboltable.CDFieldSymbol;
 import de.monticore.umlcd4a.symboltable.CDTypeSymbol;
+import de.monticore.utils.CardinalityHelper;
 import de.se_rwth.commons.Names;
 import de.se_rwth.commons.StringTransformations;
 import de.se_rwth.commons.logging.Log;
@@ -266,6 +268,26 @@ public class AstEmfGeneratorHelper extends AstGeneratorHelper {
       default:
         return "null";
     }
+  }
+  
+  public String checkForDerived(EmfAttribute emfAttribute) {
+    if (!emfAttribute.getCdAttribute().getModifier().isPresent()) {
+      return "!IS_DERIVED";
+    }
+    if (emfAttribute.getCdAttribute().getModifier().get().isDerived())
+      return "IS_DERIVED";
+    else {
+      return "!IS_DERIVED";
+    }
+  }
+  
+  public String lowerBoundCardinality(EmfAttribute emfAttribute) {
+    ASTCDAttribute cdAttribute = emfAttribute.getCdAttribute();
+    int cardinality = CardinalityHelper.getInstance().getCardinality(cdAttribute);
+    if (cardinality == ASTConstantsGrammar.PLUS) {
+      return "1";
+    }
+    return "0";
   }
   
   public static String getEPackageName(String qualifiedSuperGrammar) {
