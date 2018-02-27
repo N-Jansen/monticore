@@ -16,10 +16,10 @@ import de.monticore.symboltable.Scope;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDAttribute;
 
 /**
- * @author Nico Jansen
- * 
  * The cardinality helper stores the original cardinality values from the
  * parser. So the values are still accessible in the AST generator.
+ * 
+ * @author Nico Jansen
  */
 public class CardinalityHelper {
   
