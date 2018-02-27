@@ -189,59 +189,59 @@ public class CdEmfDecorator extends CdDecorator {
      * @param astHelper A helper for the computation.
      * @param nativeTypes The native types in the class diagram.
      */
-  protected void addSymbolAttributes(ASTCDClass clazz, AstEmfGeneratorHelper astHelper, 
-		  List<ASTCDType> nativeTypes) {
-      List<ASTCDAttribute> attributes = Lists.newArrayList(clazz.getCDAttributes());
-      for (ASTCDAttribute attribute : attributes) {
-          if (GeneratorHelper.isInherited(attribute) 
-                  || !CD4AnalysisHelper.hasStereotype(attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString())) {
-              continue;
-          }
-          String referencedSymbol = CD4AnalysisHelper
-                  .getStereotypeValues(attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString()).get(0);
-
-          if (!getQualifier(referencedSymbol).isEmpty()) {
-              referencedSymbol = SymbolTableGeneratorHelper.getQualifiedSymbolType(
-                      getQualifier(referencedSymbol).toLowerCase(), getSimpleName(referencedSymbol));
-          }
-
-          // computations to derive correct attribute
-          List<String> typeList = CD4AnalysisHelper.getStereotypeValues(attribute,
-                  MC2CDStereotypes.REFERENCED_SYMBOL.toString());
-          String type = typeList.get(0);
-          String[] typeArray = type.split("\\.");
-          type = typeArray[typeArray.length - 1];
-          type = type.substring(0, type.length() - 6);
-
-          // get referenced class
-          ASTCDType ast = null;
-          for (ASTCDType astCD : nativeTypes) {
-              if (astCD.getName().equals(GeneratorHelper.AST_PREFIX + type)) {
-                  ast = astCD;
-              }
-          }
-
-          // check if ast is present
-          if (ast == null) {
-        	  Log.error("0xA5015 CdDecorator error: " + GeneratorHelper.AST_PREFIX + type
-        	          + " not found. EMF reference cannot be created.");
-          }
-
-          Scope definingScopeOfReference = clazz.getEnclosingScope().get();
-          CDTypeSymbolReference symbolRef = new CDTypeSymbolReference(ast.getName(), definingScopeOfReference);
-          CDFieldSymbol cdFieldSymbol = new CDFieldSymbol(attribute.getName() + type, symbolRef);
-
-          String refType = ast.getName();
-          ASTCDAttribute cdAttribute = null;
-          
-          cdAttribute = (cdTransformation.addCdAttribute(clazz, attribute.getName() + type, refType, "protected")).get();
-          cdAttribute.setSymbol(cdFieldSymbol);
-
-          // set the attribute to derived since its name is accessible in the new cdAttribtue
-          ASTModifier astModifier = attribute.getModifier().get();
-          astModifier.setDerived(true);
-          attribute.setModifier(astModifier);
+  protected void addSymbolAttributes(ASTCDClass clazz, AstEmfGeneratorHelper astHelper, List<ASTCDType> nativeTypes) {
+    List<ASTCDAttribute> attributes = Lists.newArrayList(clazz.getCDAttributes());
+    for (ASTCDAttribute attribute : attributes) {
+      if (GeneratorHelper.isInherited(attribute) || 
+          !CD4AnalysisHelper.hasStereotype(attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString())) {
+        continue;
       }
+      String referencedSymbol = CD4AnalysisHelper.getStereotypeValues(
+          attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString()).get(0);
+      
+      if (!getQualifier(referencedSymbol).isEmpty()) {
+        referencedSymbol = SymbolTableGeneratorHelper.getQualifiedSymbolType(
+            getQualifier(referencedSymbol).toLowerCase(), getSimpleName(referencedSymbol));
+      }
+      
+      // computations to derive correct attribute
+      List<String> typeList = CD4AnalysisHelper.getStereotypeValues(
+          attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString());
+      String type = typeList.get(0);
+      String[] typeArray = type.split("\\.");
+      type = typeArray[typeArray.length - 1];
+      type = type.substring(0, type.length() - 6);
+      
+      // get referenced class
+      ASTCDType ast = null;
+      for (ASTCDType astCD : nativeTypes) {
+        if (astCD.getName().equals(GeneratorHelper.AST_PREFIX + type)) {
+          ast = astCD;
+        }
+      }
+      
+      // check if ast is present
+      if (ast == null) {
+        Log.error("0xA5015 CdDecorator error: " + GeneratorHelper.AST_PREFIX 
+            + type + " not found. EMF reference cannot be created.");
+      }
+      
+      Scope definingScopeOfReference = clazz.getEnclosingScope().get();
+      CDTypeSymbolReference symbolRef = new CDTypeSymbolReference(ast.getName(), definingScopeOfReference);
+      CDFieldSymbol cdFieldSymbol = new CDFieldSymbol(attribute.getName() + type, symbolRef);
+      
+      String refType = ast.getName();
+      ASTCDAttribute cdAttribute = null;
+      
+      cdAttribute = (cdTransformation.addCdAttribute(clazz, 
+          attribute.getName() + type, refType, "protected")).get();
+      cdAttribute.setSymbol(cdFieldSymbol);
+      
+      // set the attribute to derived since its name is accessible in the new cdAttribtue
+      ASTModifier astModifier = attribute.getModifier().get();
+      astModifier.setDerived(true);
+      attribute.setModifier(astModifier);
+    }
   }
   
   /**
