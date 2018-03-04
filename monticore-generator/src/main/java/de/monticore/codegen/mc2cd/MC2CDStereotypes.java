@@ -38,7 +38,11 @@ public enum MC2CDStereotypes {
   /**
    * Referenced symbol
    */
-  REFERENCED_SYMBOL("referencedSymbol");
+  REFERENCED_SYMBOL("referencedSymbol"),
+  /**
+   * Iteration of an attribute
+   */
+  ITERATION("iteration");
   
  private final String stereotype;
   

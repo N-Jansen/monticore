@@ -87,6 +87,8 @@ for (astGrammar in getParsedGrammars()) {
   
   astClassDiagram = getCDOfParsedGrammar(astGrammar)
   
+  computeCardinalities(astClassDiagram, astGrammar)
+  
   // M8: decorate Class Diagram AST
   decorateEmfCd(glex, astClassDiagram, symbolTable, handcodedPath)
   

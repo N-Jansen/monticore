@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 
 import de.monticore.codegen.GeneratorHelper;
 import de.monticore.codegen.cd2java.ast.AstGeneratorHelper;
+import de.monticore.codegen.mc2cd.MC2CDStereotypes;
 import de.monticore.codegen.mc2cd.manipul.BaseInterfaceAddingManipulation;
 import de.monticore.emf._ast.ASTECNode;
 import de.monticore.emf._ast.ASTENodePackage;
@@ -42,9 +43,12 @@ import de.monticore.umlcd4a.cd4analysis._ast.ASTCDClass;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDCompilationUnit;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDDefinition;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDType;
+import de.monticore.umlcd4a.cd4analysis._ast.ASTModifier;
+import de.monticore.umlcd4a.cd4analysis._ast.ASTStereoValue;
 import de.monticore.umlcd4a.symboltable.CDFieldSymbol;
 import de.monticore.umlcd4a.symboltable.CDTypeSymbol;
-import de.monticore.utils.CardinalityHelper;
+import de.monticore.utils.IterationHelper;
+import de.monticore.utils.NonTerminalConstraintContainer;
 import de.se_rwth.commons.Names;
 import de.se_rwth.commons.StringTransformations;
 import de.se_rwth.commons.logging.Log;
@@ -55,6 +59,7 @@ import de.se_rwth.commons.logging.Log;
 public class AstEmfGeneratorHelper extends AstGeneratorHelper {
   
   public static final String JAVA_MAP = "java.util.Map";
+  private static List<NonTerminalConstraintContainer> ntContraintList = new ArrayList<NonTerminalConstraintContainer>();
   
   public AstEmfGeneratorHelper(ASTCDCompilationUnit topAst, GlobalScope symbolTable) {
     super(topAst, symbolTable);
@@ -281,9 +286,29 @@ public class AstEmfGeneratorHelper extends AstGeneratorHelper {
     }
   }
   
+  /**
+   * Computes the lower bound of the cardinality of the given attribute.
+   * 
+   * @param emfAttribute The attribute to retrieve the cardinality for.
+   * @return The corresponding lower bound cardinality of the attribute.
+   */
   public String lowerBoundCardinality(EmfAttribute emfAttribute) {
     ASTCDAttribute cdAttribute = emfAttribute.getCdAttribute();
-    int cardinality = CardinalityHelper.getInstance().getCardinality(cdAttribute);
+    // int cardinality =
+    // CardinalityHelper.getInstance().getCardinality(cdAttribute);
+    int cardinality = ASTConstantsGrammar.DEFAULT;
+    if (cdAttribute.getModifier().isPresent()) {
+      ASTModifier modifier = cdAttribute.getModifier().get();
+      if (modifier.getStereotype().isPresent()) {
+        List<ASTStereoValue> stereoValueList = modifier.getStereotype().get().getValues();
+        for (ASTStereoValue stereoValue : stereoValueList) {
+          if (stereoValue.getName().equals(MC2CDStereotypes.ITERATION.toString())) {
+            cardinality = Integer.parseInt(stereoValue.getValue().get());
+            break;
+          }
+        }
+      }
+    }
     if (cardinality == ASTConstantsGrammar.PLUS) {
       return "1";
     }
@@ -377,4 +402,28 @@ public class AstEmfGeneratorHelper extends AstGeneratorHelper {
     });
   }
   
+  /**
+   * Adds a new constraint to the ntContraintList.
+   * 
+   * @param ntConstraintContainer
+   */
+  public static void addNtContraint(NonTerminalConstraintContainer ntConstraintContainer) {
+    ntContraintList.add(ntConstraintContainer);
+  }
+  
+  public static List<String> getFormattedNtContraints() {
+    List<String> constraints = new ArrayList<String>();
+    for (NonTerminalConstraintContainer ntCC : ntContraintList) {
+      constraints.add("addAnnotation(" + ntCC.getEnclosingClass().getName().substring(3, 4).toLowerCase()
+          + ntCC.getEnclosingClass().getName().substring(4) + "EClass"
+          + ", source, new String[] { \"" + ntCC.getReferencingAttribute().getName() + "NameConstr"
+          + "\", \"" + ntCC.getReferencingAttribute().getName() 
+          +" = " + ntCC.getReferencedAttribute().getName() + ".Name\" });");
+    }
+    return constraints;
+  }
+  
+  public static boolean ntContraintsAvailable() {
+    return !ntContraintList.isEmpty();
+  }
 }

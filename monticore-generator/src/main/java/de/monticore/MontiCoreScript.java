@@ -68,9 +68,13 @@ import de.monticore.io.paths.ModelPath;
 import de.monticore.symboltable.GlobalScope;
 import de.monticore.symboltable.ResolvingConfiguration;
 import de.monticore.umlcd4a.CD4AnalysisLanguage;
+import de.monticore.umlcd4a.cd4analysis._ast.ASTCDAttribute;
+import de.monticore.umlcd4a.cd4analysis._ast.ASTCDClass;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDCompilationUnit;
+import de.monticore.umlcd4a.cd4analysis._ast.ASTCDDefinition;
 import de.monticore.umlcd4a.symboltable.CD4AnalysisSymbolTableCreator;
 import de.monticore.umlcd4a.symboltable.CDSymbol;
+import de.monticore.utils.IterationHelper;
 import de.se_rwth.commons.Joiners;
 import de.se_rwth.commons.Names;
 import de.se_rwth.commons.configuration.Configuration;
@@ -510,6 +514,23 @@ public class MontiCoreScript extends Script implements GroovyRunner {
     VisitorGenerator.generate(glex, globalScope, astClassDiagram, outputDirectory);
     CoCoGenerator.generate(glex, globalScope, astClassDiagram, outputDirectory);
     ODGenerator.generate(glex, globalScope, astClassDiagram, outputDirectory);
+  }
+  
+  /**
+   * Attaches the iteration from the grammar to the CD-AST for cardinality
+   * computation.
+   * 
+   * @param cdCompilationUnit The class diagram.
+   * @param grammar The corresponding grammar.
+   */
+  public void computeCardinalities(ASTCDCompilationUnit cdCompilationUnit, ASTMCGrammar grammar) {
+    ASTCDDefinition cdDefinition = cdCompilationUnit.getCDDefinition();
+    IterationHelper cardinalityHelper = new IterationHelper();
+    for (ASTCDClass clazz : cdDefinition.getCDClasses()) {
+      for (ASTCDAttribute attribute : clazz.getCDAttributes()) {
+        cardinalityHelper.attachIteration(attribute, clazz, grammar);
+      }
+    }
   }
   
   /**

@@ -147,3 +147,6 @@ software, even if advised of the possibility of such damage.
     // Create resource
     createResource(eNS_URI);
     
+  <#if genHelper.ntContraintsAvailable()>
+    createPivotAnnotations();   
+  </#if>

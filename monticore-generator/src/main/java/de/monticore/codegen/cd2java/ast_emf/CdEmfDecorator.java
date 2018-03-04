@@ -76,6 +76,7 @@ import de.monticore.umlcd4a.symboltable.CDFieldSymbol;
 import de.monticore.umlcd4a.symboltable.CDSymbol;
 import de.monticore.umlcd4a.symboltable.CDTypeSymbol;
 import de.monticore.umlcd4a.symboltable.references.CDTypeSymbolReference;
+import de.monticore.utils.NonTerminalConstraintContainer;
 import de.se_rwth.commons.Names;
 import de.se_rwth.commons.StringTransformations;
 import de.se_rwth.commons.logging.Log;
@@ -241,6 +242,10 @@ public class CdEmfDecorator extends CdDecorator {
       ASTModifier astModifier = attribute.getModifier().get();
       astModifier.setDerived(true);
       attribute.setModifier(astModifier);
+      
+      // add constraint container for later OCL constraint generation
+      NonTerminalConstraintContainer ntCC = new NonTerminalConstraintContainer(attribute, cdAttribute, clazz);
+      AstEmfGeneratorHelper.addNtContraint(ntCC);
     }
   }
   

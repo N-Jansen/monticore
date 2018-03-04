@@ -3,17 +3,17 @@
  */
 package de.monticore.utils;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import de.monticore.ast.ASTNode;
+import de.monticore.codegen.mc2cd.MC2CDStereotypes;
+import de.monticore.codegen.mc2cd.TransformationHelper;
 import de.monticore.grammar.grammar._ast.ASTAlt;
+import de.monticore.grammar.grammar._ast.ASTConstantsGrammar;
 import de.monticore.grammar.grammar._ast.ASTMCGrammar;
 import de.monticore.grammar.grammar._ast.ASTNonTerminal;
 import de.monticore.grammar.grammar._ast.ASTRuleComponent;
 import de.monticore.grammar.grammar._ast.ASTTerminal;
-import de.monticore.symboltable.Scope;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDAttribute;
+import de.monticore.umlcd4a.cd4analysis._ast.ASTCDClass;
 
 /**
  * The cardinality helper stores the original cardinality values from the
@@ -21,51 +21,14 @@ import de.monticore.umlcd4a.cd4analysis._ast.ASTCDAttribute;
  * 
  * @author Nico Jansen
  */
-public class CardinalityHelper {
+public class IterationHelper {
   
-  private static final CardinalityHelper instance = new CardinalityHelper();
-  private List<ASTMCGrammar> grammarList;
   
   /**
    * Standard constructor.
    */
-  private CardinalityHelper() {
-    grammarList = new ArrayList<ASTMCGrammar>();
-  }
-  
-  /**
-   * Getter for the singleton class.
-   * 
-   * @return The instance of the CardinalityHelper.
-   */
-  public static synchronized CardinalityHelper getInstance() {
-    return instance;
-  }
-  
-  /**
-   * Register grammar elements here to store them for later use.
-   * 
-   * @param grammar The grammar to be stored.
-   */
-  public void registerGrammar(ASTMCGrammar grammar) {
-    grammarList.add(grammar);
-  }
-  
-  /**
-   * Finds the registered grammar with respect to its unique name.
-   * 
-   * @param grammarName The unique name of a grammar.
-   * @return The corresponding grammar.
-   */
-  private ASTMCGrammar findGrammar(String grammarName) {
-    ASTMCGrammar grammar = null;
-    for (ASTMCGrammar g : grammarList) {
-      if (g.getName().equals(grammarName)) {
-        grammar = g;
-        break;
-      }
-    }
-    return grammar;
+  public IterationHelper() {
+    
   }
   
   /**
@@ -140,57 +103,30 @@ public class CardinalityHelper {
   }
   
   /**
-   * Derives the cardinality of an ASTCDAttribute by traversing the
-   * corresponging nodes in the grammar and refering to the grammar component.
-   * 
-   * @param attribute The AST attribute.
-   * @return The cardinality of the attribute.
+   * Attaches the iteration from the grammar to the CD-AST.
+   * @param attribute The attribute to which the iteration is attached.
+   * @param clazz The class containing the attribute.
+   * @param grammar The corresponding grammar to retrieve the iteration from.
    */
-  public int getCardinality(ASTCDAttribute attribute) {
-    // check if enclosing scope of the attribute is available
-    if (!attribute.getEnclosingScope().isPresent()) {
-      return 0;
-    }
-    Scope classScope = attribute.getEnclosingScope().get();
-    
-    // check if name for the class scope is available is available
-    if (!classScope.getName().isPresent()) {
-      return 0;
-    }
-    String className = classScope.getName().get();
-    
-    // check if enclosing scope of the class is available
-    if (!classScope.getEnclosingScope().isPresent()) {
-      return 0;
-    }
-    
-    // check if name for the grammar scope is available
-    if (!classScope.getEnclosingScope().get().getName().isPresent()) {
-      return 0;
-    }
-    
-    // check if corresponding grammar is registered
-    String grammarName = classScope.getEnclosingScope().get().getName().get();
-    ASTMCGrammar grammar = findGrammar(grammarName);
-    if (grammar == null) {
-      return 0;
-    }
-    
+  public void attachIteration(ASTCDAttribute attribute, ASTCDClass clazz, ASTMCGrammar grammar) {
     // retrieve corresponding component and check its cardinality
-    ASTRuleComponent comp = findComponent(grammar, className, attribute);
+    ASTRuleComponent comp = findComponent(grammar, clazz.getName(), attribute);
+    
+    int iteration = ASTConstantsGrammar.DEFAULT;
     
     // component is instance of ASTTerminal
     if (comp instanceof ASTTerminal) {
       ASTTerminal terminal = (ASTTerminal) comp;
-      return terminal.getIteration();
+      iteration = terminal.getIteration();
     }
     
     // component is instance of ASTNonTerminal
     if (comp instanceof ASTNonTerminal) {
       ASTNonTerminal nonterminal = (ASTNonTerminal) comp;
-      return nonterminal.getIteration();
+      iteration = nonterminal.getIteration();
     }
     
-    return 0;
+    TransformationHelper.addStereoType(attribute, MC2CDStereotypes.ITERATION.toString(), String.valueOf(iteration));
   }
+
 }

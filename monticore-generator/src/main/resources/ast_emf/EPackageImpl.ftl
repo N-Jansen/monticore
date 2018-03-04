@@ -161,6 +161,15 @@ public class ${ast.getName()} extends EPackageImpl implements ${grammarName}Pack
     </#list>   
     return eSuperPackages;
   }
+  
+  protected void createPivotAnnotations() {
+    String source = "http://www.eclipse.org/emf/2002/Ecore/OCL/Pivot";
+    //addAnnotation(astTransitionEClass, source, new String[] { "SrcNameRef", "Src = SrcState.Name" });
+    
+    <#list genHelper.getFormattedNtContraints() as olcConstr>
+  //  ${olcConstr}
+    </#list>  
+  }
     
   <#list astClasses as astClass>
   public EClass get${astClass[3..]}() {
