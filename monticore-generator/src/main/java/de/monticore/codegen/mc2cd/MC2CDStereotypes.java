@@ -42,7 +42,15 @@ public enum MC2CDStereotypes {
   /**
    * Iteration of an attribute
    */
-  ITERATION("iteration");
+  ITERATION("iteration"),
+  /**
+   * Iteration of an attribute
+   */
+  MIN_CARD("minCard"),
+  /**
+   * Iteration of an attribute
+   */
+  MAX_CARD("maxCard");
   
  private final String stereotype;
   
