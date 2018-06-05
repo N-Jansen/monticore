@@ -293,26 +293,53 @@ public class AstEmfGeneratorHelper extends AstGeneratorHelper {
    * @return The corresponding lower bound cardinality of the attribute.
    */
   public String lowerBoundCardinality(EmfAttribute emfAttribute) {
+    // check for custom cardinality
     ASTCDAttribute cdAttribute = emfAttribute.getCdAttribute();
-    // int cardinality =
-    // CardinalityHelper.getInstance().getCardinality(cdAttribute);
-    int cardinality = ASTConstantsGrammar.DEFAULT;
     if (cdAttribute.getModifier().isPresent()) {
       ASTModifier modifier = cdAttribute.getModifier().get();
       if (modifier.getStereotype().isPresent()) {
         List<ASTStereoValue> stereoValueList = modifier.getStereotype().get().getValues();
         for (ASTStereoValue stereoValue : stereoValueList) {
-          if (stereoValue.getName().equals(MC2CDStereotypes.ITERATION.toString())) {
-            cardinality = Integer.parseInt(stereoValue.getValue().get());
-            break;
+          if (stereoValue.getName().equals(MC2CDStereotypes.MIN_CARD.toString())) {
+            return stereoValue.getValue().get();
           }
         }
       }
     }
-    if (cardinality == ASTConstantsGrammar.PLUS) {
+    
+    // return default lower bound cardinality
+    return "0";
+  }
+  
+  /**
+   * Computes the upper bound of the cardinality of the given attribute.
+   * 
+   * @param emfAttribute The attribute to retrieve the cardinality for.
+   * @return The corresponding upper bound cardinality of the attribute.
+   */
+  public String upperBoundCardinality(EmfAttribute emfAttribute) {
+    // check for custom cardinality
+    ASTCDAttribute cdAttribute = emfAttribute.getCdAttribute();
+    if (cdAttribute.getModifier().isPresent()) {
+      ASTModifier modifier = cdAttribute.getModifier().get();
+      if (modifier.getStereotype().isPresent()) {
+        List<ASTStereoValue> stereoValueList = modifier.getStereotype().get().getValues();
+        for (ASTStereoValue stereoValue : stereoValueList) {
+          if (stereoValue.getName().equals(MC2CDStereotypes.MAX_CARD.toString())) {
+            return stereoValue.getValue().get();
+          }
+        }
+      }
+    }
+    
+    // check for list of return default upper bound cardinality
+    if (emfAttribute.isAstNode()) {
+      return "1";
+    } else if (emfAttribute.isAstList() || istJavaList(emfAttribute.getCdAttribute())) {
+      return "-1";
+    } else {
       return "1";
     }
-    return "0";
   }
   
   public static String getEPackageName(String qualifiedSuperGrammar) {
