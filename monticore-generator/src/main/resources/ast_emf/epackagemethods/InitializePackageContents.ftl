@@ -120,7 +120,7 @@ software, even if advised of the possibility of such damage.
     </#if>
     <#if emfAttribute.isAstNode() || emfAttribute.isAstList()>
     init${emfAttribute.getEmfType()}(get${emfAttribute.getFullName()}(), ${get}(), null, "${emfAttribute.getAttributeName()?cap_first}", null,
-      ${genHelper.lowerBoundCardinality(emfAttribute)}, ${isList}, ${emfAttribute.getCdType().getName()}.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, IS_COMPOSITE, !IS_RESOLVE_PROXIES, !IS_UNSETTABLE, <#if isList == "1">!</#if>IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+      ${genHelper.lowerBoundCardinality(emfAttribute)}, ${genHelper.upperBoundCardinality(emfAttribute)}, ${emfAttribute.getCdType().getName()}.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, IS_COMPOSITE, !IS_RESOLVE_PROXIES, !IS_UNSETTABLE, <#if isList == "1">!</#if>IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
     <#else>
       <#if emfAttribute.isEnum()>
         <#if isList == "-1">
@@ -134,7 +134,7 @@ software, even if advised of the possibility of such damage.
         <#assign get = "ecorePackage.getE" + emfAttribute.getEDataType()?cap_first>
       </#if> 
     init${emfAttribute.getEmfType()}(get${emfAttribute.getFullName()}(), ${get}(), "${emfAttribute.getAttributeName()?cap_first}", null, 
-      ${genHelper.lowerBoundCardinality(emfAttribute)}, ${isList}, ${emfAttribute.getCdType().getName()}.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, <#if isList == "1">!</#if>IS_UNIQUE, ${genHelper.checkForDerived(emfAttribute)}, IS_ORDERED);
+      ${genHelper.lowerBoundCardinality(emfAttribute)}, ${genHelper.upperBoundCardinality(emfAttribute)}, ${emfAttribute.getCdType().getName()}.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, <#if isList == "1">!</#if>IS_UNIQUE, ${genHelper.checkForDerived(emfAttribute)}, IS_ORDERED);
     </#if>
   </#list>
   
