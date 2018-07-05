@@ -56,6 +56,8 @@ public class EmfAttribute {
   
   private String ecoreObjectType;
   
+  public EmfParamters paramters;
+  
   /**
    * @return ecoreObjectType
    */
@@ -258,6 +260,15 @@ public class EmfAttribute {
     return "EReference".equals(getEmfType());
   }
   
+  /**
+   * Getter for emf paramters.
+   * 
+   * @return paramters.
+   */
+  public EmfParamters getEmfParamters() {
+    return paramters;
+  }
+  
   public EmfAttribute(
       ASTCDAttribute cdAttribute,
       ASTCDType type,
@@ -284,6 +295,7 @@ public class EmfAttribute {
     this.hasExternalType = hasExternalType;
     this.eDataType = eDataType;
     this.defaultValue = createDefaultValue();
+    this.paramters = new EmfParamters();
   }
   
   public String toString() {

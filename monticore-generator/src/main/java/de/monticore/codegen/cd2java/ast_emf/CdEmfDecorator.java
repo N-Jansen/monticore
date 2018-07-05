@@ -695,11 +695,28 @@ public class CdEmfDecorator extends CdDecorator {
     boolean hasExternalType = eTypeCollector
         .isExternalType(astHelper.getNativeTypeName(cdAttribute));
     String eDataType = createEDataType(cdAttribute, isAstList, astHelper, eTypeCollector);
-    addEmfAttribute(ast,
-        new EmfAttribute(cdAttribute, ast, attributeName, eDataType,
-            astHelper.getDefinedGrammarName(cdAttribute),
-            isAstNode, isAstList, isOptional, isInherited, astHelper.isExternal(cdAttribute),
-            isEnum, hasExternalType));
+    EmfAttribute emfAttribute = new EmfAttribute(cdAttribute, ast, attributeName, eDataType,
+        astHelper.getDefinedGrammarName(cdAttribute),
+        isAstNode, isAstList, isOptional, isInherited, astHelper.isExternal(cdAttribute),
+        isEnum, hasExternalType);
+    addEmfParamters(emfAttribute, cdAttribute);
+    addEmfAttribute(ast, emfAttribute);
+  }
+  
+  /**
+   * Computes emf paramter values for an emf attribute.
+   * 
+   * @param emfAttribute Emf attribute, which requires paramters.
+   * @param cdAttribute Underlying AST attribute of the class diagram containing
+   *          paramter information.
+   */
+  private void addEmfParamters(EmfAttribute emfAttribute, ASTCDAttribute cdAttribute) {
+    EmfParamters paramters = emfAttribute.getEmfParamters();
+    
+    // configure default values
+    paramters.setDefaultValue(emfAttribute.getDefaultValue());
+    paramters.setOrdered(true);
+    paramters.setOtherEnd("null");
   }
   
   List<EmfAttribute> getEmfAttributes(ASTCDType type) {
