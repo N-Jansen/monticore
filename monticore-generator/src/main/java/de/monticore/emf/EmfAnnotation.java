@@ -13,7 +13,7 @@
  * *****************************************************************************
  * *
  */
-package de.monticore.codegen.cd2java.ast_emf;
+package de.monticore.emf;
 
 /**
  * Contains all parameters required for defining an annotation in EMF.
@@ -28,6 +28,13 @@ public class EmfAnnotation {
   
   private String value;
   
+  /**
+   * Constructor.
+   * 
+   * @param target
+   * @param key
+   * @param value
+   */
   public EmfAnnotation(String target, String key, String value) {
     this.target = target;
     this.key = key;

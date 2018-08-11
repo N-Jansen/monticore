@@ -87,7 +87,10 @@ for (astGrammar in getParsedGrammars()) {
   
   astClassDiagram = getCDOfParsedGrammar(astGrammar)
   
+  // capture data for metamodel generation
   computeCardinalities(astClassDiagram, astGrammar)
+  resolveSymbolDefinitions(astClassDiagram, astGrammar)
+  resolveProductionsForEmf(astClassDiagram, astGrammar)
   
   // M8: decorate Class Diagram AST
   decorateEmfCd(glex, astClassDiagram, symbolTable, handcodedPath)

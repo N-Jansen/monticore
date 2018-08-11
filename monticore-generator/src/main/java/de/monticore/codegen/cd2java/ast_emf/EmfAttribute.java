@@ -18,6 +18,7 @@
  */
 package de.monticore.codegen.cd2java.ast_emf;
 
+import de.monticore.emf.EmfParameters;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDAttribute;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDType;
 
@@ -56,7 +57,7 @@ public class EmfAttribute {
   
   private String ecoreObjectType;
   
-  public EmfParamters paramters;
+  private EmfParameters parameters;
   
   /**
    * @return ecoreObjectType
@@ -261,12 +262,12 @@ public class EmfAttribute {
   }
   
   /**
-   * Getter for emf paramters.
+   * Getter for emf parameters.
    * 
-   * @return paramters.
+   * @return parameters.
    */
-  public EmfParamters getEmfParamters() {
-    return paramters;
+  public EmfParameters getEmfParameters() {
+    return parameters;
   }
   
   public EmfAttribute(
@@ -295,7 +296,7 @@ public class EmfAttribute {
     this.hasExternalType = hasExternalType;
     this.eDataType = eDataType;
     this.defaultValue = createDefaultValue();
-    this.paramters = new EmfParamters();
+    this.parameters = new EmfParameters();
   }
   
   public String toString() {

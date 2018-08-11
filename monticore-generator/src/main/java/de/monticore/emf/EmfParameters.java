@@ -13,14 +13,14 @@
  * *****************************************************************************
  * *
  */
-package de.monticore.codegen.cd2java.ast_emf;
+package de.monticore.emf;
 
 /**
  * Contains all attribute paramters needed by emf generator
  *
  * @author Nico Jansen
  */
-public class EmfParamters {
+public class EmfParameters {
   
   private String defaultValue;
   
@@ -48,9 +48,12 @@ public class EmfParamters {
   
   private boolean composite;
   
-  private boolean resolveProxis;
+  private boolean resolveProxies;
   
-  public EmfParamters() {
+  /**
+   * Constructor.
+   */
+  public EmfParameters() {
     this.defaultValue = "null";
     this.otherEnd = "null";
     this.lowerBound = "0";
@@ -63,7 +66,7 @@ public class EmfParamters {
     this.volatile_ = false;
     this.id = false;
     this.composite = false;
-    this.resolveProxis = false;
+    this.resolveProxies = false;
   }
   
   /**
@@ -346,12 +349,12 @@ public class EmfParamters {
   }
   
   /**
-   * Emf generator getter for the resolveProxis parameter.
+   * Emf generator getter for the resolveProxies parameter.
    * 
-   * @return resolveProxis.
+   * @return resolveProxies.
    */
-  public String isResolveProxis() {
-    if (resolveProxis) {
+  public String isResolveProxies() {
+    if (resolveProxies) {
       return "IS_RESOLVE_PROXIES";
     }
     else {
@@ -360,12 +363,12 @@ public class EmfParamters {
   }
   
   /**
-   * Setter for the resolveProxis parameter.
+   * Setter for the resolveProxies parameter.
    * 
-   * @param resolveProxis.
+   * @param resolveProxies.
    */
-  public void setResolveProxis(boolean resolveProxis) {
-    this.resolveProxis = resolveProxis;
+  public void setResolveProxies(boolean resolveProxies) {
+    this.resolveProxies = resolveProxies;
   }
   
 }

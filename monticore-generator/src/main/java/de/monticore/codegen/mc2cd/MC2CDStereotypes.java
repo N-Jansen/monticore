@@ -42,15 +42,19 @@ public enum MC2CDStereotypes {
   /**
    * Iteration of an attribute
    */
-  ITERATION("iteration"),
-  /**
-   * Iteration of an attribute
-   */
   MIN_CARD("minCard"),
   /**
-   * Iteration of an attribute
+   * Maximum cardinality value of an attribute
    */
-  MAX_CARD("maxCard");
+  MAX_CARD("maxCard"),
+  /**
+   * The nonterminal is defined as a symbol
+   */
+  SYMBOL("symbol"),
+  /**
+   * The attribute is defined as an association
+   */
+  ASSOCIATION("association");
   
  private final String stereotype;
   

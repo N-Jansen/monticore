@@ -33,6 +33,8 @@ import de.monticore.codegen.mc2cd.MC2CDStereotypes;
 import de.monticore.codegen.mc2cd.manipul.BaseInterfaceAddingManipulation;
 import de.monticore.emf._ast.ASTECNode;
 import de.monticore.emf._ast.ASTENodePackage;
+import de.monticore.emf.pg.ProductionGraph;
+import de.monticore.emf.pg.ProductionGraphHelper;
 import de.monticore.grammar.grammar._ast.ASTConstantsGrammar;
 import de.monticore.symboltable.GlobalScope;
 import de.monticore.types.TypesHelper;
@@ -47,8 +49,6 @@ import de.monticore.umlcd4a.cd4analysis._ast.ASTModifier;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTStereoValue;
 import de.monticore.umlcd4a.symboltable.CDFieldSymbol;
 import de.monticore.umlcd4a.symboltable.CDTypeSymbol;
-import de.monticore.utils.IterationHelper;
-import de.monticore.utils.NonTerminalConstraintContainer;
 import de.se_rwth.commons.Names;
 import de.se_rwth.commons.StringTransformations;
 import de.se_rwth.commons.logging.Log;
@@ -59,7 +59,6 @@ import de.se_rwth.commons.logging.Log;
 public class AstEmfGeneratorHelper extends AstGeneratorHelper {
   
   public static final String JAVA_MAP = "java.util.Map";
-  private static List<NonTerminalConstraintContainer> ntContraintList = new ArrayList<NonTerminalConstraintContainer>();
   
   public AstEmfGeneratorHelper(ASTCDCompilationUnit topAst, GlobalScope symbolTable) {
     super(topAst, symbolTable);
@@ -275,17 +274,6 @@ public class AstEmfGeneratorHelper extends AstGeneratorHelper {
     }
   }
   
-  public String checkForDerived(EmfAttribute emfAttribute) {
-    if (!emfAttribute.getCdAttribute().getModifier().isPresent()) {
-      return "!IS_DERIVED";
-    }
-    if (emfAttribute.getCdAttribute().getModifier().get().isDerived())
-      return "IS_DERIVED";
-    else {
-      return "!IS_DERIVED";
-    }
-  }
-  
   /**
    * Computes the lower bound of the cardinality of the given attribute.
    * 
@@ -430,27 +418,266 @@ public class AstEmfGeneratorHelper extends AstGeneratorHelper {
   }
   
   /**
-   * Adds a new constraint to the ntContraintList.
+   * Retrieves the production graph for the class and splits it into its root
+   * branches.
    * 
-   * @param ntConstraintContainer
+   * @param clazz The class that requires the graph.
+   * @return The corresponding production graph branches.
    */
-  public static void addNtContraint(NonTerminalConstraintContainer ntConstraintContainer) {
-    ntContraintList.add(ntConstraintContainer);
+  public static List<ProductionGraph> getPGBranches(String grammar, ASTCDClass clazz) {
+    String nonterminal = clazz.getName().substring(3);
+    ProductionGraph graph = ProductionGraphHelper.getProductionGraph(grammar, nonterminal);
+    
+    List<ProductionGraph> branches = new ArrayList<ProductionGraph>();
+    if (graph != null) {
+      branches.addAll(graph.getEntries());
+    }
+    return branches;
   }
   
-  public static List<String> getFormattedNtContraints() {
-    List<String> constraints = new ArrayList<String>();
-    for (NonTerminalConstraintContainer ntCC : ntContraintList) {
-      constraints.add("addAnnotation(" + ntCC.getEnclosingClass().getName().substring(3, 4).toLowerCase()
-          + ntCC.getEnclosingClass().getName().substring(4) + "EClass"
-          + ", source, new String[] { \"" + ntCC.getReferencingAttribute().getName() + "NameConstr"
-          + "\", \"" + ntCC.getReferencingAttribute().getName() 
-          +" = " + ntCC.getReferencedAttribute().getName() + ".Name\" });");
+  /**
+   * Extracts the set of equations in a production graph.
+   * 
+   * @param branch The branch to be observed.
+   * @param clazz The corresponding class.
+   * @return The equations for the corresponding equation system.
+   */
+  public static List<String> extractPGEquations(ProductionGraph branch, ASTCDClass clazz) {
+    List<String> equations = new ArrayList<String>();
+    List<ASTCDAttribute> variables = clazz.getCDAttributes();
+    
+    // perform extraction for each variable
+    for (ASTCDAttribute var : variables) {
+      // skip resolved nonterminal references
+      if (isResolvedNonterminalReference(var)) {
+        continue;
+      }
+      
+      List<String> partialEquations = new ArrayList<String>();
+      extractEquationsForVariable(var.getName(), partialEquations, branch);
+      
+      String var_size = var.getName() + "_size";
+      String equation = "(" + var_size + " == ";
+      for (String eq : partialEquations) {
+        equation += eq + " + ";
+      }
+      equation = equation.substring(0, equation.length() - 3);
+      equation += ")";
+      equations.add(equation);
     }
+    
+    return equations;
+  }
+  
+  /**
+   * Provides the constraints for the linear equation system.
+   * 
+   * @param branch The source production graph.
+   * @return The constraints of the linear equation system.
+   */
+  public static List<String> extractPGConstraints(ProductionGraph branch) {
+    List<String> constraints = new ArrayList<>();
+    extractConstraints(branch, constraints);
     return constraints;
   }
   
-  public static boolean ntContraintsAvailable() {
-    return !ntContraintList.isEmpty();
+  /**
+   * Provides the paramters for the linear equation system.
+   * 
+   * @param branch The source production graph.
+   * @return The parameters of the linear equation system.
+   */
+  public static List<String> getParameters(ProductionGraph branch) {
+    List<String> params = new ArrayList<String>();
+    extractParams(branch, params);
+    return params;
+  }
+  
+  /**
+   * Check whether the attribute is a resolved nonterminal reference.
+   * 
+   * @param attr The investigated attribute.
+   * @return The boolean value whether the attribute is a resolved NTref.
+   */
+  private static boolean isResolvedNonterminalReference(ASTCDAttribute attr) {
+    if (attr.getModifier().isPresent()) {
+      ASTModifier modifier = attr.getModifier().get();
+      if (modifier.getStereotype().isPresent()) {
+        List<ASTStereoValue> stereoValueList = modifier.getStereotype().get().getValues();
+        for (ASTStereoValue stereoValue : stereoValueList) {
+          if (stereoValue.getName().equals(MC2CDStereotypes.ASSOCIATION.toString())) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+  
+  /**
+   * Retrieves the constraints for the linear equation system and stores these in
+   * a list.
+   * 
+   * @param branch The source production graph.
+   * @param constraints The constraint list that contains the les parameters.
+   */
+  private static void extractConstraints(ProductionGraph branch, List<String> constraints) {
+    // extract constraints
+    String param1 = branch.getLabel();
+    if (param1 != null) {
+      // check direct entries
+      if (branch.isBlock()) {
+        for (ProductionGraph entry : branch.getEntries()) {
+          String param2 = "";
+          if (entry.getLabel() != null) {
+            param2 = entry.getLabel();
+          }
+          String constraint = "((" + param2 + " == 0) || (" + param1 + " > 0))";
+          constraints.add(constraint);
+        }
+      }
+      // children of entries
+      ProductionGraph current = branch;
+      while (!current.getChildNodes().isEmpty()) {
+        current = current.getChildNodes().get(0);
+        if (current.isBlock()) {
+          for (ProductionGraph entry : current.getEntries()) {
+            String param2 = "";
+            if (entry.getLabel() != null) {
+              param2 = entry.getLabel();
+            }
+            String constraint = "((" + param2 + " == 0) || (" + param1 + " > 0))";
+            constraints.add(constraint);
+          }
+        }
+      }
+    }
+    
+    // apply recursively for subgraphs
+    ProductionGraph current = branch;
+    if (current.isBlock()) {
+      for (ProductionGraph entry : current.getEntries()) {
+        extractConstraints(entry, constraints);
+      }
+    }
+    while (!current.getChildNodes().isEmpty()) {
+      current = current.getChildNodes().get(0);
+      if (current.isBlock()) {
+        for (ProductionGraph entry : current.getEntries()) {
+          extractConstraints(entry, constraints);
+        }
+      }
+    }
+  }
+  
+  /**
+   * Retrieves the parameters for the linear equation system and stores these in
+   * a list.
+   * 
+   * @param branch The source production graph.
+   * @param params The parameter list that contains the les parameters.
+   */
+  private static void extractParams(ProductionGraph branch, List<String> params) {
+    // extract paramters in current graph
+    ProductionGraph current = branch;
+    if (current.isBlock()) {
+      for (ProductionGraph entry : current.getEntries()) {
+        if (entry.getLabel() != null) {
+          params.add(entry.getLabel());
+        }
+      }
+    }
+    while (!current.getChildNodes().isEmpty()) {
+      current = current.getChildNodes().get(0);
+      if (current.isBlock()) {
+        for (ProductionGraph entry : current.getEntries()) {
+          if (entry.getLabel() != null) {
+            params.add(entry.getLabel());
+          }
+        }
+      }
+    }
+    
+    // apply recursively
+    current = branch;
+    if (current.isBlock()) {
+      for (ProductionGraph entry : current.getEntries()) {
+        extractParams(entry, params);
+      }
+    }
+    while (!current.getChildNodes().isEmpty()) {
+      current = current.getChildNodes().get(0);
+      if (current.isBlock()) {
+        for (ProductionGraph entry : current.getEntries()) {
+          extractParams(entry, params);
+        }
+      }
+    }
+  }
+  
+  /**
+   * Adds equations for a given variable in a production graph branch.
+   * 
+   * @param partialEquations The list of partialEquations that is extracted for
+   *          each block.
+   * @param branch The observed branch of the production graph.
+   */
+  private static void extractEquationsForVariable(String name, List<String> partialEquations, ProductionGraph branch) {
+    // extract equations
+    if (branch.getParentNodes().size() == 1 && branch.getParentNodes().get(0).isRoot()) {
+      int count = getPlainCount(name, branch);
+      String equation = " " + count;
+      partialEquations.add(equation);
+    }
+    else {
+      String param = branch.getLabel();
+      int count = getPlainCount(name, branch);
+      String equation = count + " * " + param;
+      partialEquations.add(equation);
+    }
+    
+    // apply recursively
+    ProductionGraph current = branch;
+    if (current.isBlock()) {
+      for (ProductionGraph entry : current.getEntries()) {
+        extractEquationsForVariable(name, partialEquations, entry);
+      }
+    }
+    while (!current.getChildNodes().isEmpty()) {
+      current = current.getChildNodes().get(0);
+      if (current.isBlock()) {
+        for (ProductionGraph entry : current.getEntries()) {
+          extractEquationsForVariable(name, partialEquations, entry);
+        }
+      }
+    }
+    
+  }
+  
+  /**
+   * Extracts the occurrences of the variable identified by its name in the
+   * production graph. This extractions works only on the attribute nodes and
+   * ignores blocks.
+   * 
+   * @param name The identifier for the variable.
+   * @param branch The observed production graph branch.
+   * @return The number of variable instantiations.
+   */
+  private static int getPlainCount(String name, ProductionGraph branch) {
+    int res = 0;
+    ProductionGraph current = branch;
+    
+    // count occurrences in child nodes
+    if (current.getAttributeName() != null && current.getAttributeName().equals(name)) {
+      res++;
+    }
+    while (!current.getChildNodes().isEmpty()) {
+      current = current.getChildNodes().get(0);
+      if (current.getAttributeName() != null && current.getAttributeName().equals(name)) {
+        res++;
+      }
+    }
+    
+    return res;
   }
 }

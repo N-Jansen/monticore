@@ -22,6 +22,7 @@ import static de.monticore.codegen.GeneratorHelper.getPlainName;
 import static de.se_rwth.commons.Names.getQualifier;
 import static de.se_rwth.commons.Names.getSimpleName;
 
+import java.security.Policy.Parameters;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -38,6 +39,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
+import de.monticore.ast.ASTNode;
 import de.monticore.codegen.GeneratorHelper;
 import de.monticore.codegen.cd2java.ast.AstAdditionalAttributes;
 import de.monticore.codegen.cd2java.ast.AstGeneratorHelper;
@@ -48,6 +50,8 @@ import de.monticore.codegen.mc2cd.MC2CDStereotypes;
 import de.monticore.codegen.mc2cd.TransformationHelper;
 import de.monticore.codegen.mc2cd.transl.ConstantsTranslation;
 import de.monticore.codegen.symboltable.SymbolTableGeneratorHelper;
+import de.monticore.emf.EmfAnnotation;
+import de.monticore.emf.EmfParameters;
 import de.monticore.generating.templateengine.GlobalExtensionManagement;
 import de.monticore.generating.templateengine.HookPoint;
 import de.monticore.generating.templateengine.StringHookPoint;
@@ -55,9 +59,14 @@ import de.monticore.generating.templateengine.TemplateHookPoint;
 import de.monticore.io.paths.IterablePath;
 import de.monticore.symboltable.GlobalScope;
 import de.monticore.symboltable.Scope;
+import de.monticore.symboltable.ScopeSpanningSymbol;
+import de.monticore.symboltable.Symbol;
 import de.monticore.types.TypesHelper;
 import de.monticore.types.TypesPrinter;
+import de.monticore.types.types._ast.ASTConstantsTypes;
 import de.monticore.types.types._ast.ASTImportStatement;
+import de.monticore.types.types._ast.ASTPrimitiveType;
+import de.monticore.types.types._ast.ASTReturnType;
 import de.monticore.types.types._ast.ASTSimpleReferenceType;
 import de.monticore.umlcd4a.CD4AnalysisHelper;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDAttribute;
@@ -70,13 +79,13 @@ import de.monticore.umlcd4a.cd4analysis._ast.ASTCDInterface;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDMethod;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDType;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTModifier;
+import de.monticore.umlcd4a.cd4analysis._ast.ASTStereoValue;
 import de.monticore.umlcd4a.cd4analysis._ast.CD4AnalysisNodeFactory;
 import de.monticore.umlcd4a.cd4analysis._visitor.CD4AnalysisInheritanceVisitor;
 import de.monticore.umlcd4a.symboltable.CDFieldSymbol;
 import de.monticore.umlcd4a.symboltable.CDSymbol;
 import de.monticore.umlcd4a.symboltable.CDTypeSymbol;
 import de.monticore.umlcd4a.symboltable.references.CDTypeSymbolReference;
-import de.monticore.utils.NonTerminalConstraintContainer;
 import de.se_rwth.commons.Names;
 import de.se_rwth.commons.StringTransformations;
 import de.se_rwth.commons.logging.Log;
@@ -103,6 +112,12 @@ public class CdEmfDecorator extends CdDecorator {
   
   private Map<ASTCDType, List<EmfAttribute>> emfAttributes = new LinkedHashMap<>();
   
+  private List<EmfAnnotation> pivotAnnotations;
+  
+  private List<EmfAnnotation> ecoreAnnotations;
+  
+  private List<ASTCDAttribute> associations;
+  
   public CdEmfDecorator(
       GlobalExtensionManagement glex,
       GlobalScope symbolTable,
@@ -111,6 +126,10 @@ public class CdEmfDecorator extends CdDecorator {
   }
   
   public void decorate(ASTCDCompilationUnit cdCompilationUnit) {
+    pivotAnnotations = new ArrayList<EmfAnnotation>();
+    ecoreAnnotations = new ArrayList<EmfAnnotation>();
+    associations = new ArrayList<ASTCDAttribute>();
+    
     AstEmfGeneratorHelper astHelper = new AstEmfGeneratorHelper(cdCompilationUnit, symbolTable);
     
     // Run over classdiagramm and collects external emf types
@@ -122,9 +141,11 @@ public class CdEmfDecorator extends CdDecorator {
     List<ASTCDClass> nativeClasses = Lists.newArrayList(cdDefinition.getCDClasses());
     List<ASTCDType> nativeTypes = astHelper.getNativeTypes(cdDefinition);
     
-    // Add symbol attributes.
+    // Compute data for Ecore metamodel
     for (ASTCDClass clazz : nativeClasses) {
-        addSymbolAttributes(clazz, astHelper,  nativeTypes);
+      addSymbolAttributes(clazz, astHelper,  nativeTypes);
+      addValidateConstraint(clazz);
+      addValidateMethod(cdCompilationUnit, clazz, astHelper);
     }
     
     List<ASTCDClass> astNotAbstractClasses = cdDefinition.getCDClasses().stream()
@@ -184,30 +205,72 @@ public class CdEmfDecorator extends CdDecorator {
   }
   
   /**
-     * Method to create attributes for referenced nonterminals
-     * 
-     * @param clazz The class to add the attribute.
-     * @param astHelper A helper for the computation.
-     * @param nativeTypes The native types in the class diagram.
-     */
+   * Method to detect symbol definitions in stereotypes.
+   * 
+   * @param attr The (name) attribute to check.
+   * 
+   * @return The boolean value concerning an existing symbol definition.
+   */
+  protected boolean isSymbolDefinition(ASTCDAttribute attr) {
+    // check if corresponding scopes and symbols are avialable
+    if (!attr.getEnclosingScope().isPresent()) {
+      return false;
+    }
+    Scope encScope = attr.getEnclosingScope().get();
+    
+    if (!encScope.getSpanningSymbol().isPresent()) {
+      return false;
+    }
+    ScopeSpanningSymbol spanScope = encScope.getSpanningSymbol().get();
+    
+    if (!spanScope.getAstNode().isPresent()) {
+      return false;
+    }
+    
+    ASTNode node = spanScope.getAstNode().get();
+    if (!(node instanceof ASTCDClass)) {
+      return false;
+    }
+    
+    // derive ast class
+    ASTCDClass clazz = (ASTCDClass) node;
+    
+    // check for symbol stereotype
+    if (clazz.getModifier().isPresent()) {
+      ASTModifier modifier = clazz.getModifier().get();
+      if (modifier.getStereotype().isPresent()) {
+        List<ASTStereoValue> stereoValueList = modifier.getStereotype().get().getValues();
+        for (ASTStereoValue stereoValue : stereoValueList) {
+          if (stereoValue.getName().equals(MC2CDStereotypes.SYMBOL.toString())) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+  
+  /**
+   * Method to create attributes for referenced nonterminals
+   * 
+   * @param clazz The class to add the attribute.
+   * @param astHelper A helper for the computation.
+   * @param nativeTypes The native types in the class diagram.
+   */
   protected void addSymbolAttributes(ASTCDClass clazz, AstEmfGeneratorHelper astHelper, List<ASTCDType> nativeTypes) {
     List<ASTCDAttribute> attributes = Lists.newArrayList(clazz.getCDAttributes());
     for (ASTCDAttribute attribute : attributes) {
-      if (GeneratorHelper.isInherited(attribute) || 
-          !CD4AnalysisHelper.hasStereotype(attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString())) {
+      if (GeneratorHelper.isInherited(attribute) || !CD4AnalysisHelper.hasStereotype(attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString())) {
         continue;
       }
-      String referencedSymbol = CD4AnalysisHelper.getStereotypeValues(
-          attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString()).get(0);
+      String referencedSymbol = CD4AnalysisHelper.getStereotypeValues(attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString()).get(0);
       
       if (!getQualifier(referencedSymbol).isEmpty()) {
-        referencedSymbol = SymbolTableGeneratorHelper.getQualifiedSymbolType(
-            getQualifier(referencedSymbol).toLowerCase(), getSimpleName(referencedSymbol));
+        referencedSymbol = SymbolTableGeneratorHelper.getQualifiedSymbolType(getQualifier(referencedSymbol).toLowerCase(), getSimpleName(referencedSymbol));
       }
       
       // computations to derive correct attribute
-      List<String> typeList = CD4AnalysisHelper.getStereotypeValues(
-          attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString());
+      List<String> typeList = CD4AnalysisHelper.getStereotypeValues(attribute, MC2CDStereotypes.REFERENCED_SYMBOL.toString());
       String type = typeList.get(0);
       String[] typeArray = type.split("\\.");
       type = typeArray[typeArray.length - 1];
@@ -223,8 +286,7 @@ public class CdEmfDecorator extends CdDecorator {
       
       // check if ast is present
       if (ast == null) {
-        Log.error("0xA5015 CdDecorator error: " + GeneratorHelper.AST_PREFIX 
-            + type + " not found. EMF reference cannot be created.");
+        Log.error("0xA5015 CdDecorator error: " + GeneratorHelper.AST_PREFIX + type + " not found. EMF reference cannot be created.");
       }
       
       Scope definingScopeOfReference = clazz.getEnclosingScope().get();
@@ -234,19 +296,70 @@ public class CdEmfDecorator extends CdDecorator {
       String refType = ast.getName();
       ASTCDAttribute cdAttribute = null;
       
-      cdAttribute = (cdTransformation.addCdAttribute(clazz, 
-          attribute.getName() + type, refType, "protected")).get();
+      cdAttribute = (cdTransformation.addCdAttribute(clazz, attribute.getName() + type, refType, "protected")).get();
       cdAttribute.setSymbol(cdFieldSymbol);
       
-      // set the attribute to derived since its name is accessible in the new cdAttribtue
+      // store as association
+      associations.add(cdAttribute);
+      TransformationHelper.addStereoType(cdAttribute, MC2CDStereotypes.ASSOCIATION.toString(), String.valueOf(""));
+      
+      // set the attribute to derived since its name is accessible in the new
+      // cdAttribtue
       ASTModifier astModifier = attribute.getModifier().get();
       astModifier.setDerived(true);
       attribute.setModifier(astModifier);
       
-      // add constraint container for later OCL constraint generation
-      NonTerminalConstraintContainer ntCC = new NonTerminalConstraintContainer(attribute, cdAttribute, clazz);
-      AstEmfGeneratorHelper.addNtContraint(ntCC);
+      // add derivation as annotation
+      String getAttrInClass = "get" + clazz.getName() + "_" + attribute.getName().substring(0, 1).toUpperCase() + attribute.getName().substring(1) + "()";
+      pivotAnnotations.add(new EmfAnnotation(getAttrInClass, "derivation", "if (" + attribute.getName() + ".oclIsUndefined()) then null else " + cdAttribute.getName() + ".name endif"));
     }
+  }
+  
+  /**
+   * Adds the validate method to each class for model evaluation in EMF.
+   * 
+   * @param cdCompilationUnit
+   * @param clazz
+   * @param astHelper
+   */
+  protected void addValidateMethod(ASTCDCompilationUnit cdCompilationUnit, ASTCDClass clazz, AstEmfGeneratorHelper astHelper) {
+    List<ASTCDAttribute> attributes = Lists.newArrayList(clazz.getCDAttributes());
+    // attributes.addAll(astHelper.getAttributesOfExtendedInterfaces(clazz));
+    
+    // compute paramters
+    String parameters = "";
+    for (ASTCDAttribute attr : attributes) {
+      parameters += ", int " + attr.getName() + "_size";
+    }
+    if (!parameters.isEmpty()) {
+      parameters = parameters.substring(2);
+    }
+    
+    String grammarName = cdCompilationUnit.getCDDefinition().getName();
+    
+    String toParse = "public boolean validate(" + parameters + ");";
+    HookPoint validateMethodBody = new TemplateHookPoint("ast_emf.Validate", clazz, grammarName, astHelper);
+    replaceMethodBodyTemplate(clazz, toParse, validateMethodBody);
+  }
+
+  /**
+   * Adds the constraint for invoking the validateModel method via OCL.
+   * 
+   * @param clazz
+   */
+  protected void addValidateConstraint(ASTCDClass clazz) {
+    String className = clazz.getName().substring(3, 4).toLowerCase() + clazz.getName().substring(4) + "EClass";
+    ecoreAnnotations.add(new EmfAnnotation(className, "constraints", "validateModel"));
+    
+    // compute passed arguments
+    String variableInstantiations = "";
+    for (ASTCDAttribute var : clazz.getCDAttributes()) {
+      variableInstantiations += var.getName() + "->size(), ";
+    }
+    if (!variableInstantiations.isEmpty()) {
+      variableInstantiations = variableInstantiations.substring(0, variableInstantiations.length() - 2);
+    }
+    pivotAnnotations.add(new EmfAnnotation(className, "validateModel", "self.validate(" + variableInstantiations + ")"));
   }
   
   /**
@@ -488,6 +601,11 @@ public class CdEmfDecorator extends CdDecorator {
         GeneratorHelper.getValuesOfConstantEnum(astHelper.getCdDefinition()));
     replaceMethodBodyTemplate(packageImpl, toParse, getMethodBody);
     
+    // add annotations method
+    String annotationsSignature = "protected void createAnnotations();";
+    HookPoint validateMethodBody = new TemplateHookPoint("ast_emf.epackagemethods.Annotations", pivotAnnotations, ecoreAnnotations);
+    replaceMethodBodyTemplate(packageImpl, annotationsSignature, validateMethodBody);
+    
     cdDef.getCDClasses().add(packageImpl);
     
     glex.replaceTemplate(CLASS_CONTENT_TEMPLATE, packageImpl, new TemplateHookPoint(
@@ -699,7 +817,7 @@ public class CdEmfDecorator extends CdDecorator {
         astHelper.getDefinedGrammarName(cdAttribute),
         isAstNode, isAstList, isOptional, isInherited, astHelper.isExternal(cdAttribute),
         isEnum, hasExternalType);
-    addEmfParamters(emfAttribute, cdAttribute);
+    addEmfParamters(emfAttribute, cdAttribute, astHelper);
     addEmfAttribute(ast, emfAttribute);
   }
   
@@ -709,14 +827,47 @@ public class CdEmfDecorator extends CdDecorator {
    * @param emfAttribute Emf attribute, which requires paramters.
    * @param cdAttribute Underlying AST attribute of the class diagram containing
    *          paramter information.
+   * @param astHelper Helper for internal AST configuration.
    */
-  private void addEmfParamters(EmfAttribute emfAttribute, ASTCDAttribute cdAttribute) {
-    EmfParamters paramters = emfAttribute.getEmfParamters();
+  private void addEmfParamters(EmfAttribute emfAttribute, ASTCDAttribute cdAttribute, AstEmfGeneratorHelper astHelper) {
+    EmfParameters parameters = emfAttribute.getEmfParameters();
     
     // configure default values
-    paramters.setDefaultValue(emfAttribute.getDefaultValue());
-    paramters.setOrdered(true);
-    paramters.setOtherEnd("null");
+    parameters.setDefaultValue(emfAttribute.getDefaultValue());
+    parameters.setOrdered(true);
+    parameters.setOtherEnd("null");
+    
+    // configure primitive types
+    if (!astHelper.isAstNode(cdAttribute) && !astHelper.isOptionalAstNode(cdAttribute) && !astHelper.isListAstNode(cdAttribute)) {
+      parameters.setUnsettable(true);
+    }
+    
+    // configure symbol definition
+    if (cdAttribute.getName().equals("name") && isSymbolDefinition(cdAttribute)) {
+      parameters.setId(true);
+    }
+    
+    // configure derived
+    if (cdAttribute.getModifier().isPresent() && cdAttribute.getModifier().get().isDerived()) {
+      parameters.setDerived(true);
+      parameters.setChangeable(false);
+      parameters.setVolatile(true);
+      parameters.setTransient(true);
+    }
+    
+    // configure composition
+    if (astHelper.isAstNode(cdAttribute) || astHelper.isOptionalAstNode(cdAttribute) || astHelper.isListAstNode(cdAttribute)) {
+      parameters.setComposite(true);
+      parameters.setResolveProxies(false);
+    }
+    
+    // configure association
+    if (associations.contains(cdAttribute)) {
+      parameters.setComposite(false);
+      parameters.setResolveProxies(true);
+    }
+    
+    
   }
   
   List<EmfAttribute> getEmfAttributes(ASTCDType type) {

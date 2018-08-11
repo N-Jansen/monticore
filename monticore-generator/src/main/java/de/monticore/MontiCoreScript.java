@@ -37,6 +37,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
 
+import de.monticore.ast.ASTNode;
 import de.monticore.codegen.GeneratorHelper;
 import de.monticore.codegen.cd2java.ast.AstGenerator;
 import de.monticore.codegen.cd2java.ast.AstGeneratorHelper;
@@ -46,20 +47,27 @@ import de.monticore.codegen.cd2java.cocos.CoCoGenerator;
 import de.monticore.codegen.cd2java.od.ODGenerator;
 import de.monticore.codegen.cd2java.types.TypeResolverGenerator;
 import de.monticore.codegen.cd2java.visitor.VisitorGenerator;
+import de.monticore.codegen.mc2cd.MC2CDStereotypes;
 import de.monticore.codegen.mc2cd.MC2CDTransformation;
 import de.monticore.codegen.mc2cd.MCGrammarSymbolTableHelper;
+import de.monticore.codegen.mc2cd.TransformationHelper;
 import de.monticore.codegen.parser.ParserGenerator;
 import de.monticore.codegen.symboltable.SymbolTableGenerator;
 import de.monticore.codegen.symboltable.SymbolTableGeneratorBuilder;
 import de.monticore.codegen.symboltable.SymbolTableGeneratorHelper;
+import de.monticore.emf.CustomCardinalityHelper;
+import de.monticore.emf.pg.ProductionGraphHelper;
 import de.monticore.generating.templateengine.GlobalExtensionManagement;
 import de.monticore.generating.templateengine.reporting.Reporting;
 import de.monticore.generating.templateengine.reporting.commons.ReportingConstants;
 import de.monticore.generating.templateengine.reporting.reporter.InputOutputFilesReporter;
 import de.monticore.grammar.cocos.GrammarCoCos;
+import de.monticore.grammar.grammar._ast.ASTASTRule;
+import de.monticore.grammar.grammar._ast.ASTClassProd;
 import de.monticore.grammar.grammar._ast.ASTMCGrammar;
 import de.monticore.grammar.grammar_withconcepts._cocos.Grammar_WithConceptsCoCoChecker;
 import de.monticore.grammar.symboltable.MCGrammarSymbol;
+import de.monticore.grammar.symboltable.MCProdSymbol;
 import de.monticore.grammar.symboltable.MontiCoreGrammarLanguage;
 import de.monticore.grammar.symboltable.MontiCoreGrammarSymbolTableCreator;
 import de.monticore.incremental.IncrementalChecker;
@@ -67,14 +75,15 @@ import de.monticore.io.paths.IterablePath;
 import de.monticore.io.paths.ModelPath;
 import de.monticore.symboltable.GlobalScope;
 import de.monticore.symboltable.ResolvingConfiguration;
+import de.monticore.symboltable.Symbol;
 import de.monticore.umlcd4a.CD4AnalysisLanguage;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDAttribute;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDClass;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDCompilationUnit;
 import de.monticore.umlcd4a.cd4analysis._ast.ASTCDDefinition;
+import de.monticore.umlcd4a.cd4analysis._ast.ASTModifier;
 import de.monticore.umlcd4a.symboltable.CD4AnalysisSymbolTableCreator;
 import de.monticore.umlcd4a.symboltable.CDSymbol;
-import de.monticore.utils.IterationHelper;
 import de.se_rwth.commons.Joiners;
 import de.se_rwth.commons.Names;
 import de.se_rwth.commons.configuration.Configuration;
@@ -524,12 +533,38 @@ public class MontiCoreScript extends Script implements GroovyRunner {
    * @param grammar The corresponding grammar.
    */
   public void computeCardinalities(ASTCDCompilationUnit cdCompilationUnit, ASTMCGrammar grammar) {
-    ASTCDDefinition cdDefinition = cdCompilationUnit.getCDDefinition();
-    IterationHelper cardinalityHelper = new IterationHelper();
-    for (ASTCDClass clazz : cdDefinition.getCDClasses()) {
-      for (ASTCDAttribute attribute : clazz.getCDAttributes()) {
-        cardinalityHelper.attachIteration(attribute, clazz, grammar);
+    CustomCardinalityHelper cch = new CustomCardinalityHelper();
+    cch.attachCustomCardinalities(cdCompilationUnit, grammar);
+  }
+  
+  /**
+   * Stores the symobl definition of a production for the corresponding CD
+   * class as stereotype.
+   * 
+   * @param cdCompilationUnit The class diagram.
+   * @param grammar The corresponding grammar.
+   */
+  public void resolveSymbolDefinitions(ASTCDCompilationUnit cdCompilationUnit, ASTMCGrammar grammar) {
+    for (ASTClassProd cp : grammar.getClassProds()) {
+      if (!cp.getSymbolDefinitions().isEmpty()) {
+        for (ASTCDClass clazz : cdCompilationUnit.getCDDefinition().getCDClasses()) {
+          if (clazz.getName().equals("AST" + cp.getName())) {
+            TransformationHelper.addStereoType(clazz, MC2CDStereotypes.SYMBOL.toString(), String.valueOf(""));
+          }
+        }
       }
+    }
+  }
+  
+  /**
+   * Extracts production rules and converts these into graphs.
+   * 
+   * @param cdCompilationUnit The class diagram.
+   * @param grammar The corresponding grammar.
+   */
+  public void resolveProductionsForEmf(ASTCDCompilationUnit cdCompilationUnit, ASTMCGrammar grammar) {
+    for (ASTClassProd prod : grammar.getClassProds()) {
+      ProductionGraphHelper.createProductionGraph(grammar.getName(), prod.getName(), prod.getAlts());
     }
   }
   

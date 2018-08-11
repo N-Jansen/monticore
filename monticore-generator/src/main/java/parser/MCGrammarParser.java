@@ -28,7 +28,6 @@ import com.google.common.io.Files;
 import de.monticore.grammar.grammar._ast.ASTMCGrammar;
 import de.monticore.grammar.grammar_withconcepts._parser.Grammar_WithConceptsParser;
 import de.monticore.grammar.transformation.GrammarTransformer;
-import de.monticore.utils.IterationHelper;
 import de.se_rwth.commons.Names;
 import de.se_rwth.commons.logging.Log;
 

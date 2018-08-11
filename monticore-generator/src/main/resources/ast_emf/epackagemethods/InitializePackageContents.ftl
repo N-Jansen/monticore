@@ -119,8 +119,8 @@ software, even if advised of the possibility of such damage.
       <#assign isList = "1">
     </#if>
     <#if emfAttribute.isAstNode() || emfAttribute.isAstList()>
-    init${emfAttribute.getEmfType()}(get${emfAttribute.getFullName()}(), ${get}(), null, "${emfAttribute.getAttributeName()?cap_first}", null,
-      ${genHelper.lowerBoundCardinality(emfAttribute)}, ${genHelper.upperBoundCardinality(emfAttribute)}, ${emfAttribute.getCdType().getName()}.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, IS_COMPOSITE, !IS_RESOLVE_PROXIES, !IS_UNSETTABLE, <#if isList == "1">!</#if>IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+    init${emfAttribute.getEmfType()}(get${emfAttribute.getFullName()}(), ${get}(), null, "${emfAttribute.getAttributeName()}", null,
+      ${genHelper.lowerBoundCardinality(emfAttribute)}, ${genHelper.upperBoundCardinality(emfAttribute)}, ${emfAttribute.getCdType().getName()}.class, ${emfAttribute.getEmfParameters().isTransient()}, ${emfAttribute.getEmfParameters().isVolatile()}, ${emfAttribute.getEmfParameters().isChangeable()}, ${emfAttribute.getEmfParameters().isComposite()}, ${emfAttribute.getEmfParameters().isResolveProxies()}, ${emfAttribute.getEmfParameters().isUnsettable()}, <#if isList == "1">!</#if>IS_UNIQUE, ${emfAttribute.getEmfParameters().isDerived()}, ${emfAttribute.getEmfParameters().isOrdered()} );
     <#else>
       <#if emfAttribute.isEnum()>
         <#if isList == "-1">
@@ -133,20 +133,28 @@ software, even if advised of the possibility of such damage.
       <#else>
         <#assign get = "ecorePackage.getE" + emfAttribute.getEDataType()?cap_first>
       </#if> 
-    init${emfAttribute.getEmfType()}(get${emfAttribute.getFullName()}(), ${get}(), "${emfAttribute.getAttributeName()?cap_first}", null, 
-      ${genHelper.lowerBoundCardinality(emfAttribute)}, ${genHelper.upperBoundCardinality(emfAttribute)}, ${emfAttribute.getCdType().getName()}.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, <#if isList == "1">!</#if>IS_UNIQUE, ${genHelper.checkForDerived(emfAttribute)}, IS_ORDERED);
+    init${emfAttribute.getEmfType()}(get${emfAttribute.getFullName()}(), ${get}(), "${emfAttribute.getAttributeName()}", null, 
+      ${genHelper.lowerBoundCardinality(emfAttribute)}, ${genHelper.upperBoundCardinality(emfAttribute)}, ${emfAttribute.getCdType().getName()}.class, ${emfAttribute.getEmfParameters().isTransient()}, ${emfAttribute.getEmfParameters().isVolatile()}, ${emfAttribute.getEmfParameters().isChangeable()}, ${emfAttribute.getEmfParameters().isUnsettable()}, ${emfAttribute.getEmfParameters().isId()}, <#if isList == "1">!</#if>IS_UNIQUE, ${emfAttribute.getEmfParameters().isDerived()}, ${emfAttribute.getEmfParameters().isOrdered()});
     </#if>
   </#list>
   
   <#list externalTypes?keys as externalType>
     initEDataType(${externalTypes[externalType]?uncap_first}EDataType, ${externalType}.class, "${externalTypes[externalType]}", IS_SERIALIZABLE, !IS_GENERATED_INSTANCE_CLASS);
-  </#list>   
+  </#list>
+  
+  // add validate methods
+  <#list astClasses as astClass>   
+    <#assign className = astHelper.getPlainName(astClass)>
+    EOperation op_${className[3..]?uncap_first}EClass = addEOperation(${className[3..]?uncap_first}EClass, ecorePackage.getEBoolean(), "validate");
+    <#assign attributes = astClass.getCDAttributes()>
+    <#list attributes as attribute>
+      addEParameter(op_${className[3..]?uncap_first}EClass, ecorePackage.getEInt(), "${attribute.getName()}_size");
+    </#list>
+  </#list>
    
     <#-- TODO GV:   ePackageImplInitiliazeMethod, ast.getMethods() -->
   
     // Create resource
     createResource(eNS_URI);
     
-  <#if genHelper.ntContraintsAvailable()>
-    createPivotAnnotations();   
-  </#if>
+    createAnnotations();  
